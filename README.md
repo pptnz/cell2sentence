@@ -114,9 +114,8 @@ each explain which model they use.
 - [ ] Add parameter-efficient finetuning methods (LoRA)
 
 
-## License & Patent
+## License
 Licensed under the [Apache License 2.0](LICENSE).  
-See [PATENT_NOTICE.md](PATENT_NOTICE.md) for patent details.
 
 
 ## Cite Cell2Sentence
