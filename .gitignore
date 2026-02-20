@@ -182,3 +182,7 @@ notebooks
 scripts
 tutorials/wandb
 example_*.py
+
+*.csv
+*.h5ad
+tutorials/c2s_api_testing/
