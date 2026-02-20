@@ -17,6 +17,7 @@
 
 
 # Python built-in libraries
+import argparse
 import os
 import pickle
 import random
@@ -37,6 +38,10 @@ from cell2sentence.tasks import predict_cell_types_of_data
 
 # In[2]:
 
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--cell_type_prediction_model_path", type=str, default=None)
+args, _ = parser.parse_known_args()
 
 SEED = 1234
 random.seed(SEED)
@@ -186,17 +191,20 @@ arrow_ds[sample_idx]
 import glob
 save_dir = "./c2s_api_testing/csmodel_tutorial_3"
 
-# Find the finetune_cell_type_prediction directory and latest checkpoint automatically
-finetune_dirs = sorted(glob.glob(os.path.join(save_dir, "*_finetune_cell_type_prediction")))
-assert len(finetune_dirs) > 0, f"No finetune_cell_type_prediction directory found in {save_dir}"
-finetune_dir = finetune_dirs[-1]
+if args.cell_type_prediction_model_path is not None:
+    cell_type_prediction_model_path = args.cell_type_prediction_model_path
+else:
+    # Find the finetune_cell_type_prediction directory and latest checkpoint automatically
+    finetune_dirs = sorted(glob.glob(os.path.join(save_dir, "*_finetune_cell_type_prediction")))
+    assert len(finetune_dirs) > 0, f"No finetune_cell_type_prediction directory found in {save_dir}"
+    finetune_dir = finetune_dirs[-1]
 
-checkpoint_dirs = sorted(
-    glob.glob(os.path.join(finetune_dir, "checkpoint-*")),
-    key=lambda x: int(x.split("-")[-1])
-)
-assert len(checkpoint_dirs) > 0, f"No checkpoint-* directories found in {finetune_dir}"
-cell_type_prediction_model_path = checkpoint_dirs[-1]
+    checkpoint_dirs = sorted(
+        glob.glob(os.path.join(finetune_dir, "checkpoint-*")),
+        key=lambda x: int(x.split("-")[-1])
+    )
+    assert len(checkpoint_dirs) > 0, f"No checkpoint-* directories found in {finetune_dir}"
+    cell_type_prediction_model_path = checkpoint_dirs[-1]
 print(f"Using checkpoint: {cell_type_prediction_model_path}")
 
 save_name = "cell_type_pred_pythia_410M_inference"
