@@ -18,11 +18,56 @@ from datasets import load_from_disk, DatasetDict, Dataset
 
 # Pytorch, Huggingface imports
 import torch
+import torch.nn.functional as F
 from transformers import AutoTokenizer, AutoModelForCausalLM, Trainer, TrainingArguments
 
 # Local imports
 from cell2sentence.prompt_formatter import PromptFormatter, C2SPromptFormatter
 from cell2sentence.utils import train_test_split_arrow_ds, tokenize_all, tokenize_loss_on_response
+
+
+class _LastTokenLossTrainer(Trainer):
+    """Trainer subclass that additionally logs the loss on the last valid token."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._last_token_losses = []
+
+    def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
+        outputs = model(**inputs)
+        loss = outputs.loss
+
+        labels = inputs.get("labels")
+        if labels is not None:
+            logits = outputs.logits
+            # Causal LM: logits[..., :-1, :] predict labels[..., 1:]
+            shift_logits = logits[..., :-1, :].contiguous()
+            shift_labels = labels[..., 1:].contiguous()
+            batch_size = shift_labels.size(0)
+            last_token_losses = []
+            for i in range(batch_size):
+                valid = (shift_labels[i] != -100).nonzero(as_tuple=True)[0]
+                if len(valid) > 0:
+                    pos = valid[-1]
+                    lt_loss = F.cross_entropy(
+                        shift_logits[i, pos].unsqueeze(0),
+                        shift_labels[i, pos].unsqueeze(0),
+                    )
+                    last_token_losses.append(lt_loss.detach().item())
+            if last_token_losses:
+                self._last_token_losses.append(
+                    sum(last_token_losses) / len(last_token_losses)
+                )
+
+        return (loss, outputs) if return_outputs else loss
+
+    def log(self, logs, **kwargs):
+        if self._last_token_losses:
+            avg = sum(self._last_token_losses) / len(self._last_token_losses)
+            key = "eval_last_token_loss" if "eval_loss" in logs else "last_token_loss"
+            logs[key] = avg
+            self._last_token_losses = []
+        super().log(logs, **kwargs)
 
 
 class CSModel():
@@ -207,7 +252,7 @@ class CSModel():
             eval_dataset = eval_dataset.select(sampled_eval_indices)
         
         # Define Trainer
-        trainer = Trainer(
+        trainer = _LastTokenLossTrainer(
             model=model,
             args=train_args,
             data_collator=data_collator,
